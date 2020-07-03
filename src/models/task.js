@@ -22,7 +22,6 @@ const taskSchema = new mongoose.Schema({
 
 taskSchema.pre('save', async function (next) {
     const task = this
-    console.log('fired off before save')
     next()
 })
 

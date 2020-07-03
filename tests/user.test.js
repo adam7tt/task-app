@@ -3,49 +3,52 @@ const jwt = require('jsonwebtoken')
 const mongoose = require('mongoose')
 const app = require('../src/app')
 const User = require('../src/models/user')
+const {userOneId, userOne, setupDatabase} = require('./fixtures/db')
 
-const userOneId = new mongoose.Types.ObjectId()
-const userOne = {
-    _id: userOneId,
-    name: 'Mike',
-    email: 'mike@example.com',
-    password: '56whattt!',
-    tokens: [{
-        token: jwt.sign({_id: userOneId}, process.env.JWT_SECRET)
-    }]
-}
+beforeEach(setupDatabase)
 
-beforeEach( async () => {
-    await User.deleteMany()
-    await new User(userOne).save()
-})
+//
+// User Test Ideas
+//
+// Should not signup user with invalid name/email/password
+// Should not update user if unauthenticated
+// Should not update user with invalid name/email/password
+// Should not delete user if unauthenticated
+
 
 test('Should login existing user', async () => {
-
-    const response = await request(app).post('/users/login').send({
+    const response = await request(app)
+    .post('/users/login')
+    .send({
         email: userOne.email,
         password: userOne.password,     
-    }).expect(200)
+    })
+    .expect(200)
+
     const user = await User.findById(userOneId)
     expect(user.tokens[1].token).toBe(response.body.token)
 })
 
-test('Login nonexistant user', async () => {
-    await request(app).post('/users/login').send({
+test('Should not login nonexistant user', async () => {
+    await request(app)
+    .post('/users/login').send({
         email: 'notarealemail@bad.com',
         password: 'fakepassword1234'  
-    }).expect(404)
+    })
+    .expect(404)
 })
 
 test('Should sign up a new user', async () => {
-    const response = await request(app).post('/users').send({
+    const response = await request(app)
+    .post('/users')
+    .send({
         name: 'Buzz Lightyear',
         email: 'infinityandbeyond@gmail.com',
         password: 'starcommand1234'
-    }).expect(201)
+    })
+    .expect(201)
     const user = await User.findById(response.body.user._id)
     expect(user).not.toBeNull()
-
     expect(response.body).toMatchObject({
         user: {
             name: 'Buzz Lightyear',
@@ -106,11 +109,6 @@ test('Should update valid user fields', async () => {
     .send({
         name: 'Jess'
     })
-    console.log(response)
-
-    // .expect(200)
-
-
     const user = await User.findById(userOneId)
     expect(user.name).toEqual('Jess')
 })
