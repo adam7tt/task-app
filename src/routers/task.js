@@ -2,12 +2,35 @@ const express = require('express');
 const Task = require('../models/task');
 const auth = require('../middleware/auth')
 const router = new express.Router();
+const multer = require('multer');
+const sharp = require('sharp')
 
 
-router.post('/tasks', auth, async (req, res) => {
-    // const task = new Task(req.body)
+const upload = multer({
+    limit: 1000000,
+    fileFilter(req, file, cb){
+        if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
+            return (cb(new Error('please upload an image')))
+        }
+        cb(undefined, true)
+        }
+})
+
+//Allow an authenticated user to created a new task
+//The method to allow for task creation including an image has to have a better method than I've implemented
+//I could do a  route to .post('/tasks/image) that handles the same logic in task but with just an image added? 
+router.post('/tasks', auth, upload.single('task-image'), async (req, res) => {
+    //if there is no file attatched req.file will not exist, good to know
+    let buffer = ''
+    if (req.file && req.file.fieldname === 'task-image') {
+        buffer = await sharp(req.file.buffer).resize({width: 250, height:250}).png().toBuffer()
+    } else {
+        buffer = ''
+    }
+
     const task = new Task({
         ...req.body,
+        image: buffer,
         owner: req.user._id
     });
 
@@ -17,15 +40,9 @@ router.post('/tasks', auth, async (req, res) => {
     } catch (e) {
         res.status(400).send(e)
     }
-    //old implementation using promises, not using async await syntax
-    
-    // task.save().then(() => {
-    //     res.status(201).send(task)
-    // }).catch((e) => {
-    //     res.status(400).send(e)
-    // });
 });
 
+//Alow an authenticated user to get all of their tasks and filter and/or paginate
 // GET /tasks?completed=true
 // GET /tasks?limit=10&skip=20
 // GET /tasks?sortBy=createdAt_desc 
@@ -37,9 +54,9 @@ router.get('/tasks', auth, async (req, res) => {
         match.completed = req.query.completed === 'true'
     }
 
-    if(req.query.sortBy) {
+    if (req.query.sortBy) {
         const parts = req.query.sortBy.split(':')
-        sort[parts[0]] = parts[1] === 'desc' ? -1: 1
+        sort[parts[0]] = parts[1] === 'desc' ? -1 : 1
     }
 
     try {
@@ -58,12 +75,15 @@ router.get('/tasks', auth, async (req, res) => {
     }
 })
 
+//Allow authenticated user to get one of their tasks
 router.get('/tasks/:id', auth, async (req, res) => {
     const _id = req.params.id
 
     try {
-        // const task = await Task.findById(_id)
-        const task = await Task.findOne({_id, owner: req.user._id})
+        const task = await Task.findOne({
+            _id,
+            owner: req.user._id
+        })
         if (!task) {
             return res.sendStatus(404);
         }
@@ -80,11 +100,16 @@ router.patch('/tasks/:id', auth, async (req, res) => {
         return allowedUpdates.includes(update)
     });
     if (!isValidOperation) {
-        return res.status(400).send({error: 'Invalid field in body'})
+        return res.status(400).send({
+            error: 'Invalid field in body'
+        })
     }
 
     try {
-        const task = await Task.findOne({_id: req.params.id, owner: req.user._id })
+        const task = await Task.findOne({
+            _id: req.params.id,
+            owner: req.user._id
+        })
 
         if (!task) {
             return res.sendStatus(404)
@@ -94,7 +119,34 @@ router.patch('/tasks/:id', auth, async (req, res) => {
             task[update] = req.body[update]
         })
         await task.save()
-        // const task = await Task.findByIdAndUpdate(req.params.id, req.body, {new: true, runValidators: true})
+        if (!task) {
+            return res.sendStatus(400)
+        }
+        res.send(task)
+    } catch (e) {
+        res.status(400).send(e)
+    }
+});
+
+//Added route to handle updating a tasks images 
+router.patch('/tasks/:id/image', auth,  upload.single('task-image'), async (req, res) => {
+    let buffer = ''
+    if (req.file && req.file.fieldname === 'task-image') {
+        buffer = await sharp(req.file.buffer).resize({width: 250, height:250}).png().toBuffer()
+    } else {
+        buffer = ''
+    }
+    try {
+        const task = await Task.findOne({
+            _id: req.params.id,
+            owner: req.user._id
+        })
+
+        if (!task) {
+            return res.sendStatus(404)
+        }
+        task.image = buffer
+        await task.save()
         if (!task) {
             return res.sendStatus(400)
         }
@@ -106,7 +158,10 @@ router.patch('/tasks/:id', auth, async (req, res) => {
 
 router.delete('/tasks/:id', auth, async (req, res) => {
     try {
-        const task = await Task.findOneAndDelete({_id: req.params.id, owner: req.user._id})
+        const task = await Task.findOneAndDelete({
+            _id: req.params.id,
+            owner: req.user._id
+        })
         if (!task) {
             return res.sendStatus(404)
         }

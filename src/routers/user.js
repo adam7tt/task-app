@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 const router = new express.Router()
 const User = require('../models/user')
 const auth = require('../middleware/auth');
@@ -13,6 +14,8 @@ router.post('/users', async (req, res) => {
         await user.save()
         sendWelcomeEmail(user.email, user.name)
         const token = await user.generateAuthToken()
+        res.cookie('auth_token', token)
+        res.sendFile(path.resolve(__dirname, '..', 'views', 'private.html'))
         res.status(201).send({ user, token })
     } catch (e) {
         res.status(400).send(e)
@@ -24,6 +27,8 @@ router.post('/users/login', async (req, res) => {
         const user = await User.findByCredentials(req.body.email, req.body.password)
         const token = await user.generateAuthToken()
         res.send({user: user, token })
+        res.cookie('auth_token', token)
+        res.sendFile(path.resolve(__dirname, '..', 'views', 'private.html'))
     } catch (e) {
         res.status(404).send(e)
     }
@@ -66,20 +71,6 @@ router.get('/users/me', auth, async (req, res) => {
     res.send(req.user)
 })
 
-// router.get('/users/:id', async (req, res) => {
-//     const _id = req.params.id
-//     try {
-//         const user = await User.findById(_id);
-//         if (!user) {
-//             return res.sendStatus(404);
-//         } 
-//         res.send(user);
-//     } catch (e) {
-//         res.statusStatus(500);
-//     }
-// });
-
-//Converted from patch '/users/:id
 router.patch('/users/me', auth, async (req, res) => {
     const updates = Object.keys(req.body)
     const allowedUpdates = ['name', 'email', 'password', 'age']
@@ -98,23 +89,16 @@ router.patch('/users/me', auth, async (req, res) => {
     }
 })
 
-//Converted from '/users/:id to users/me so that a user can only delete themselves
 router.delete('/users/me', auth, async (req, res) => {
     try {
         sendGoodbyeEmail(req.user.email, req.user.name)
         await req.user.remove()
         res.send(req.user)
-        // const user = await User.findByIdAndDelete(req.user._id)
-        // if (!user) {
-        //     return res.status(404).send()
-        // }
-        // res.send(user)
     } catch (e) {
         res.status(500).send()
     }
 });
 
-const multer = require('multer');
 const upload = multer({
     limit: 1000000,
     fileFilter(req, file, cb){
@@ -126,7 +110,6 @@ const upload = multer({
 })
 
 router.post('/users/me/avatar', auth, upload.single('avatar'), async (req, res) => {
-    // req.user.avatar = req.file.buffer
     const buffer = await sharp(req.file.buffer).resize({width: 250, height:250}).png().toBuffer()
     req.user.avatar = buffer
     await req.user.save()
