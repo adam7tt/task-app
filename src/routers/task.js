@@ -49,7 +49,6 @@ router.post('/tasks', auth, upload.single('task-image'), async (req, res) => {
 router.get('/tasks', auth, async (req, res) => {
     const match = {}
     const sort = {}
-
     if (req.query.completed) {
         match.completed = req.query.completed === 'true'
     }

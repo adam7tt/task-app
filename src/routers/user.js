@@ -15,7 +15,8 @@ router.post('/users', async (req, res) => {
         sendWelcomeEmail(user.email, user.name)
         const token = await user.generateAuthToken()
         res.cookie('auth_token', token)
-        res.sendFile(path.resolve(__dirname, '..', 'views', 'private.html'))
+        //redirect assumes client is on same project
+        // res.sendFile(path.resolve(__dirname, '..', 'views', 'private.html'))
         res.status(201).send({ user, token })
     } catch (e) {
         res.status(400).send(e)
@@ -26,9 +27,11 @@ router.post('/users/login', async (req, res) => {
     try {
         const user = await User.findByCredentials(req.body.email, req.body.password)
         const token = await user.generateAuthToken()
-        res.send({user: user, token })
         res.cookie('auth_token', token)
-        res.sendFile(path.resolve(__dirname, '..', 'views', 'private.html'))
+        console.log(user, token)
+        res.send({user: user, token })
+        //Redirect assumes client is on same project
+        // res.sendFile(path.resolve(__dirname, '..', 'views', 'private.html'))
     } catch (e) {
         res.status(404).send(e)
     }
